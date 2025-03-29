@@ -275,3 +275,37 @@ body {
         height: 50vh;
     }
 }
+
+/* Swipe-to-delete functionality */
+.history-item {
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y;
+    transition: transform 0.3s ease, height 0.3s ease, margin 0.3s ease, opacity 0.3s ease;
+}
+
+.delete-indicator {
+    position: absolute;
+    right: 0;
+    top: 0;
+    height: 100%;
+    width: 80px;
+    background-color: var(--accent-color);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    font-weight: 500;
+    opacity: 0;
+    transition: opacity 0.2s ease;
+}
+
+.history-item.delete-ready .delete-indicator {
+    opacity: 1;
+}
+
+/* Make sure the history container has proper overflow handling */
+.history-container {
+    overflow-x: hidden; /* Prevent horizontal scrolling when swiping */
+}
