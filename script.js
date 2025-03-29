@@ -22,6 +22,7 @@ document.addEventListener('DOMContentLoaded', () => {
     updateCurrentTime();
     loadEvents();
     setInterval(updateCurrentTime, 1000);
+    makeHistoryItemsSwipeable();
 });
 
 // Initialize camera
@@ -109,17 +110,24 @@ function loadEvents() {
         events = JSON.parse(storedEvents);
         events.forEach(event => addEventToHistory(event));
     }
+    
+    // Make all history items swipeable after loading
+    makeHistoryItemsSwipeable();
 }
 
 // Add event to history display
 function addEventToHistory(event) {
     const historyItem = document.createElement('div');
     historyItem.className = 'history-item';
+    historyItem.dataset.id = event.id; // Store the event ID in the DOM element
     historyItem.innerHTML = `
         <img src="${event.imageData}" alt="Event at ${event.formattedTime}" class="history-image">
         <div class="history-details">
             <span class="history-timestamp">${event.formattedTime}</span>
             <span class="history-camera">${event.cameraName}</span>
+        </div>
+        <div class="delete-indicator">
+            <span>Delete</span>
         </div>
     `;
     
@@ -129,18 +137,27 @@ function addEventToHistory(event) {
     } else {
         historyContainer.appendChild(historyItem);
     }
+    
+    // Make the new item swipeable
+    makeHistoryItemSwipeable(historyItem);
 }
 
 // Send event to dashboard
 function sendToDashboard(event) {
-    // Store in sessionStorage for the dashboard to access
-    // This is a simple way to share data between pages
-    const dashboardEvents = JSON.parse(sessionStorage.getItem('dashboard_events') || '[]');
-    dashboardEvents.push(event);
-    sessionStorage.setItem('dashboard_events', JSON.stringify(dashboardEvents));
+    // Create a simplified version of the event with just essential data
+    // to avoid URL size limitations
+    const dashboardEvent = {
+        id: event.id,
+        timestamp: event.timestamp,
+        cameraName: event.cameraName,
+        imageData: event.imageData
+    };
     
-    // If you want to open the dashboard automatically:
-    // window.open(DASHBOARD_URL, '_blank');
+    // Store the event in localStorage with a special key that includes the event ID
+    localStorage.setItem(`dashboard_event_${event.id}`, JSON.stringify(dashboardEvent));
+    
+    // Open the dashboard with the event ID as a parameter
+    window.open(`${DASHBOARD_URL}?eventId=${event.id}`, '_blank');
 }
 
 // Show notification
@@ -152,4 +169,148 @@ function showNotification(message, isError = false) {
     setTimeout(() => {
         notification.classList.remove('show');
     }, 3000);
+}
+
+// Make all history items swipeable
+function makeHistoryItemsSwipeable() {
+    const historyItems = document.querySelectorAll('.history-item');
+    historyItems.forEach(item => makeHistoryItemSwipeable(item));
+}
+
+// Make a single history item swipeable
+function makeHistoryItemSwipeable(item) {
+    let startX, moveX, currentTranslate = 0;
+    let isDragging = false;
+    
+    // Touch events
+    item.addEventListener('touchstart', handleTouchStart, { passive: true });
+    item.addEventListener('touchmove', handleTouchMove, { passive: false });
+    item.addEventListener('touchend', handleTouchEnd);
+    
+    // Mouse events
+    item.addEventListener('mousedown', handleMouseDown);
+    
+    function handleTouchStart(e) {
+        startX = e.touches[0].clientX;
+        isDragging = true;
+        item.style.transition = 'none';
+    }
+    
+    function handleTouchMove(e) {
+        if (!isDragging) return;
+        moveX = e.touches[0].clientX;
+        const diffX = moveX - startX;
+        
+        // Only allow swiping left (negative values)
+        if (diffX < 0) {
+            currentTranslate = diffX;
+            item.style.transform = `translateX(${currentTranslate}px)`;
+            
+            // Show delete indicator when swiped far enough
+            if (currentTranslate < -80) {
+                item.classList.add('delete-ready');
+            } else {
+                item.classList.remove('delete-ready');
+            }
+            
+            // Prevent scrolling when swiping
+            e.preventDefault();
+        }
+    }
+    
+    function handleTouchEnd() {
+        isDragging = false;
+        item.style.transition = 'transform 0.3s ease';
+        
+        // If swiped far enough, delete the item
+        if (currentTranslate < -100) {
+            deleteHistoryItem(item);
+        } else {
+            // Reset position
+            currentTranslate = 0;
+            item.style.transform = `translateX(0)`;
+            item.classList.remove('delete-ready');
+        }
+    }
+    
+    function handleMouseDown(e) {
+        startX = e.clientX;
+        isDragging = true;
+        item.style.transition = 'none';
+        
+        // Add mouse move and up listeners to document
+        document.addEventListener('mousemove', handleMouseMove);
+        document.addEventListener('mouseup', handleMouseUp);
+        
+        e.preventDefault();
+    }
+    
+    function handleMouseMove(e) {
+        if (!isDragging) return;
+        moveX = e.clientX;
+        const diffX = moveX - startX;
+        
+        // Only allow swiping left (negative values)
+        if (diffX < 0) {
+            currentTranslate = diffX;
+            item.style.transform = `translateX(${currentTranslate}px)`;
+            
+            // Show delete indicator when swiped far enough
+            if (currentTranslate < -80) {
+                item.classList.add('delete-ready');
+            } else {
+                item.classList.remove('delete-ready');
+            }
+        }
+    }
+    
+    function handleMouseUp() {
+        if (!isDragging) return;
+        isDragging = false;
+        item.style.transition = 'transform 0.3s ease';
+        
+        // Remove document listeners
+        document.removeEventListener('mousemove', handleMouseMove);
+        document.removeEventListener('mouseup', handleMouseUp);
+        
+        // If swiped far enough, delete the item
+        if (currentTranslate < -100) {
+            deleteHistoryItem(item);
+        } else {
+            // Reset position
+            currentTranslate = 0;
+            item.style.transform = `translateX(0)`;
+            item.classList.remove('delete-ready');
+        }
+    }
+}
+
+// Delete a history item
+function deleteHistoryItem(item) {
+    // Get the event ID from the data attribute
+    const eventId = parseInt(item.dataset.id);
+    
+    // Find and remove the event from the events array
+    events = events.filter(event => event.id !== eventId);
+    
+    // Update local storage
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(events));
+    
+    // Animate removal
+    item.style.height = `${item.offsetHeight}px`;
+    item.style.marginBottom = getComputedStyle(item).marginBottom;
+    
+    // Force a reflow
+    item.offsetHeight;
+    
+    item.style.height = '0';
+    item.style.marginBottom = '0';
+    item.style.opacity = '0';
+    item.style.transform = 'translateX(-100%)';
+    
+    // Remove from DOM after animation
+    setTimeout(() => {
+        item.remove();
+        showNotification('Event deleted');
+    }, 300);
 }
