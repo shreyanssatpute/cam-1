@@ -9,7 +9,7 @@ const notificationText = document.getElementById('notification-text');
 
 // Constants
 const CAMERA_NAME = 'Camera 1';
-const DASHBOARD_URL = '../dashboard/index.html';
+const DASHBOARD_URL = 'https://shreyanssatpute.github.io/dashboard/';
 const LOCAL_STORAGE_KEY = 'camera_events';
 
 // Variables
